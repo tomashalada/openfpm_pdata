@@ -21,6 +21,7 @@ using DistributedParticleVector =  vector_dist_gpu< 3, RealType, AggregatedVaria
 #define DRHO_DT 4
 #define DV_DT 5
 #define REDUCTION_REMOVE 8
+#define REDUCTION_VISCO 9
 
 
 // define more friendly acces to variables

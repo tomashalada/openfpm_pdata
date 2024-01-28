@@ -189,7 +189,6 @@ equationOfState( DistributedParticleVector& distributedVector )
 {
    // particle iterator
    auto distributedParticleVectorGPUIterator = distributedVector.getDomainIteratorGPU();
-
    CUDA_LAUNCH( equationOfState_kernel, distributedParticleVectorGPUIterator, distributedVector.toKernel(), B );
 }
 
@@ -410,55 +409,50 @@ computeInteractions( DistributedParticleVector& distribtuedVector,
    max_visc = reduce_local< REDUCTION_REMOVE, _max_ >( distribtuedVector );  //TODO: _max_ is functional? Ugly name.
 }
 
-template< typename vector_type >
+template< typename DistributedParticleVectorType >
 __global__
 void
-max_acceleration_and_velocity_gpu( vector_type distribtuedVector )
+getMaximumVelocityAndAcceleration_kernel( DistributedParticleVectorType distribtuedVector )
 {
    auto a = GET_PARTICLE( distribtuedVector );
-
-   Point< 3, real_number > acc( distribtuedVector.template getProp< force >( a ) );
-   distribtuedVector.template getProp< red >( a ) = norm( acc );
-
-   Point< 3, real_number > vel( distribtuedVector.template getProp< velocity >( a ) );
-   distribtuedVector.template getProp< red2 >( a ) = norm( vel );
+   reductionBufferRemove( a ) = norm( dv_dt( a ) ); //TODO: chose better reduction buffer name
+   reductionBufferVisco( a ) = norm( v( a ) ); //TODO: chode better reduction buffer name
 }
 
 void
-max_acceleration_and_velocity( particles& distribtuedVector, real_number& max_acc, real_number& max_vel )
+getMaximumVelocityAndAcceleration( DistributedParticleVector& distribtuedVector, RealType& maxAcc, RealType& maxVel )
 {
-   // Calculate the maximum acceleration
-   auto part = distribtuedVector.getDomainIteratorGPU();
+   // particle iterator
+   auto distributedParticleVectorGPUIterator = distributedVector.getDomainIteratorGPU();
 
-   CUDA_LAUNCH( max_acceleration_and_velocity_gpu, part, distribtuedVector.toKernel() );
+   CUDA_LAUNCH( getMaximumVelocityAndAcceleration_kernel,
+                distributedParticleVectorGPUIterator,
+                distribtuedVector.toKernel() );
 
-   max_acc = reduce_local< red, _max_ >( distribtuedVector );
-   max_vel = reduce_local< red2, _max_ >( distribtuedVector );
+   maxAcc = reduce_local< REDUCTION_REMOVE, _max_ >( distribtuedVector ); //TODO: chose better reduction buffer name
+   maxVel = reduce_local< REDUCTION_VISCO, _max_ >( distribtuedVector ); //TODO: chose better reduction buffer name
 
-   Vcluster<>& v_cl = create_vcluster();
-   v_cl.max( max_acc );
-   v_cl.max( max_vel );
-   v_cl.execute();
+   Vcluster<>& vCluster = create_vcluster();
+   vCluster.max( max_acc );
+   vCluster.max( max_vel );
+   vCluster.execute();
 }
 
-real_number
-calc_deltaT( particles& distribtuedVector, real_number ViscDtMax )
+RealType
+computeTimeStepSize( DistributedParticleVector& distribtuedVector, RealType viscDtMax )
 {
-   real_number Maxacc = 0.0;
-   real_number Maxvel = 0.0;
-   max_acceleration_and_velocity( distribtuedVector, Maxacc, Maxvel );
+   RealType maxAcc = 0.0;
+   RealType maxVel = 0.0;
+   getMaximumVelocityAndAcceleration( distribtuedVector, maxAcc, maxVel );
 
-   //-dt1 depends on force per unit mass.
-   const real_number dt_f = ( Maxacc ) ? sqrt( H / Maxacc ) : std::numeric_limits< float >::max();
-
-   //-dt2 combines the Courant and the viscous time-step controls.
-   const real_number dt_cv = H / ( std::max( cbar, Maxvel * 10.f ) + H * ViscDtMax );
-
-   //-dt new value of time step.
-   real_number dt = real_number( CFLnumber ) * std::min( dt_f, dt_cv );
-   if( dt < real_number( DtMin ) ) {
-      dt = real_number( DtMin );
-   }
+   // compute time step based on force per unit mass.
+   const RealType dt_f = ( Maxacc ) ? sqrt( h / maxAcc ) : std::numeric_limits< float >::max();
+   // compute time step based on CFL condition and maximum viscous forces.
+   const real_number dt_cv = H / ( std::max( cbar, maxVel * 10.f ) + h * viscDtMax );
+   // compute resulting time steop
+   real_number dt = RealType( CFLnumber ) * std::min( dt_f, dt_cv );
+   if( dt < RealType( dtMin ) )
+      dt = RealType( dtMin );
 
    return dt;
 }
@@ -467,7 +461,9 @@ template< typename DistributedParticleVector >
 __global__
 void
 verletIntegrationScheme_kernel( DistributedParticleVector distributedVector,
-                                const RealType dt )  //, real_number dt2, real_number dt205)
+                                const RealType dt,
+                                const RealType dt2,
+                                const RealType dt205 )
 {
    auto i = GET_PARTICLE( distributedVector );
 
@@ -487,10 +483,8 @@ verletIntegrationScheme_kernel( DistributedParticleVector distributedVector,
    // if the particle is fluid, update position and density
    const VectorType dr_i = dt * v( i ) + dt205 * dv_dt( i );
    r( i ) += dr_i;
-
    const VectorType vToBackup_i = v( i );
    v( i ) = v_old( i ) + dt2 * dv_dt( i );
-
    const RealType rhoToBackup_i = rho( i );
    rho( i ) = rho_old( i ) + dt2 * drho_dt;
 
@@ -498,8 +492,7 @@ verletIntegrationScheme_kernel( DistributedParticleVector distributedVector,
    const VectorType r_i = r( i );
    const RealType rho_i = rho( i );
    if( r_i[ 0 ] < 0.0 || r_i[ 1 ] < 0.0 || r_i[ 2 ] < 0.0 || r_i[ 0 ] > 3.22 || r_i[ 1 ] > 1.0 || r_i[ 2 ] > 1.5
-       || rho_i < RhoMin || rho_i > RhoMax )
-   {
+       || rho_i < RhoMin || rho_i > RhoMax ) {
       reductionBufferRemove( i ) = 1;
    }
    else {
@@ -565,8 +558,7 @@ eulerIntegrationScheme_kernel( DistributedParticleVector& DistributedParticleVec
    const VectorType r_i = r( i );
    const RealType rho_i = rho( i );
    if( r_i[ 0 ] < 0.0 || r_i[ 1 ] < 0.0 || r_i[ 2 ] < 0.0 || r_i[ 0 ] > 3.22 || r_i[ 1 ] > 1.0 || r_i[ 2 ] > 1.5
-       || rho_i < RhoMin || rho_i > RhoMax )
-   {
+       || rho_i < RhoMin || rho_i > RhoMax ) {
       reductionBufferRemove( i ) = 1;
    }
    else {
@@ -822,7 +814,7 @@ main( int argc, char* argv[] )
    openfpm::vector_gpu< aggregate< int > > border_ids;
 
    #ifdef CUDIFY_USE_CUDA
-   cudaDeviceSetCacheConfig( cudaFuncCachePreferL1 );
+      cudaDeviceSetCacheConfig( cudaFuncCachePreferL1 );
    #endif
 
    // It contain for each time-step the value detected by the probes
@@ -1107,7 +1099,7 @@ main( int argc, char* argv[] )
       v_cl.execute();
 
       // Calculate delta t integration
-      real_number dt = calc_deltaT( distribtuedVector, max_visc );
+      real_number dt = computeTimeStepSize( distribtuedVector, max_visc );
 
       timer_reductions.stop();
       reduction_total_time += timer_reductions.getwct();
