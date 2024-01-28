@@ -18,6 +18,7 @@ using AggregatedVariables = aggregate< unsigned int,     // particle type
 // define type of vecor to store the data
 using DistributedParticleVector =  vector_dist_gpu< 3, RealType, AggregatedVariables >;
 
+#define PARTICLE_TYPE 0
 #define DRHO_DT 4
 #define DV_DT 5
 #define REDUCTION_REMOVE 8

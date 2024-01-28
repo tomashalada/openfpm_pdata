@@ -67,9 +67,9 @@ const real_number MassBound = rho_zero * dp * dp * dp;
 
 // End simulation time
 //#ifdef TEST_RUN
-//const real_number t_end = 0.001;
+//const real_number simulatioEndTime = 0.001;
 //#else
-const real_number t_end = 1.0;
+const real_number simulatioEndTime = 1.0;
 //#endif
 
 // Gravity acceleration
@@ -648,7 +648,7 @@ sensor_pressure( Vector& distribtuedVector,
                  openfpm::vector< openfpm::vector< real_number > >& press_t,
                  openfpm::vector< Point< 3, real_number > >& probes )
 {
-   Vcluster<>& v_cl = create_vcluster();
+   Vcluster<>& vCluser = create_vcluster();
 
    press_t.add();
 
@@ -677,8 +677,8 @@ sensor_pressure( Vector& distribtuedVector,
       // This is not necessary in principle, but if you
       // want to make all processor aware of the history of the calculated
       // pressure we have to execute this
-      v_cl.sum( press_tmp );
-      v_cl.execute();
+      vCluser.sum( press_tmp );
+      vCluser.execute();
 
       // We add the calculated pressure into the history
       press_t.last().add( press_tmp );
@@ -741,7 +741,7 @@ sensor_water_level( Vector& distribtuedVector,
                     openfpm::vector< openfpm::vector< real_number > >& water_level_t,
                     openfpm::vector< Point< 3, real_number > >& probes_water_level )
 {
-   Vcluster<>& v_cl = create_vcluster();
+   Vcluster<>& vCluser = create_vcluster();
 
    water_level_t.add();
 
@@ -796,8 +796,8 @@ sensor_water_level( Vector& distribtuedVector,
       // This is not necessary in principle, but if you
       // want to make all processor aware of the history of the calculated
       // pressure we have to execute this
-      v_cl.sum( water_level_temp );
-      v_cl.execute();
+      vCluser.sum( water_level_temp );
+      vCluser.execute();
 
       // We add the calculated pressure into the history
       water_level_t.last().add( water_level_temp );
@@ -1002,171 +1002,171 @@ main( int argc, char* argv[] )
    //Added timers to track every operation inside the time loop
    timer tot_sim;
 
-   timer timer_vcluster;
-   float vcluster_total_time = 0.f;
+   timer timerVCluster;
+   float timerVClusterTotal = 0.f;
 
    timer timer_interaction;
    float interaction_total_time = 0.f;
 
-   timer tot_pressure;
-   float pressure_total_time = 0.f;
+   timer timerPressure;
+   float timerPressureTotal = 0.f;
 
-   timer timer_integrate;
-   float integration_total_time = 0.f;
+   timer timerIntegration;
+   float timerIntegrationTotal = 0.f;
 
-   timer tot_rebalancing;
-   float rebalanting_total_time = 0.f;
+   timer timerRebalancing;
+   float timerRebalancingTotal = 0.f;
 
-   timer timer_map;
+   timer timerMap;
    float map_total_time = 0.f;
 
-   timer timer_reductions;
-   float reduction_total_time = 0.f;
+   timer timerComputeTimeStep;
+   float timerComputeTimeStepTotal = 0.f;
 
    timer timer_ghosts;
    float ghost_total_time = 0.f;
 
    //Cout the total number of steps
-   int tot_steps = 0;
+   int simulationStep = 0;
 
    tot_sim.start();
 
    size_t write = 0;
-   float write_pressure = 0;
-   float write_pressure_interval = 0.01;
-   size_t it = 0;
-   size_t it_reb = 0;
-   real_number t = 0.0;
-   while( t <= t_end ) {
-      tot_steps++;
+   float counterSensors = 0;
+   float writePeriodSensors = 0.01;
+   size_t counterIntegrationScheme = 0;
+   size_t conouterRebalancing = 0;
+   RealType time = 0.0;
 
-      timer_vcluster.start();
-      Vcluster<>& v_cl = create_vcluster();
-      timer_vcluster.stop();
-      vcluster_total_time += timer_vcluster.getwct();
+   while( t <= simulatioEndTime ) {
+      simulationStep++;
+
+      timerVCluster.start();
+      Vcluster<>& vCluser = create_vcluster();
+      timerVCluster.stop();
+      timerVClusterTotal += timerVCluster.getwct();
       timer it_time;
       it_time.start();
 
-      ////// Do rebalancing every 200 timesteps
-      tot_rebalancing.start();
-      it_reb++;
-      if( it_reb == 300 ) {
+      // every 300 steps, perform domain rebbalancing
+      timerRebalancing.start();
+      conouterRebalancing++;
+      if( conouterRebalancing == 300 ) {
          distribtuedVector.map( RUN_ON_DEVICE );
 
-         // Rebalancer for now work on CPU , so move to CPU
+         // eebalancer works on CPU, so move data to CPU
          distribtuedVector.deviceToHostPos();
-         distribtuedVector.template deviceToHostProp< type >();
+         distribtuedVector.template deviceToHostProp< PARTICLE_TYPE >();
 
-         it_reb = 0;
-         ModelCustom md;
-         distribtuedVector.addComputationCosts( md );
+         conouterRebalancing = 0;
+         ModelCustom modelCustom;
+         distribtuedVector.addComputationCosts( modelCustom );
          distribtuedVector.getDecomposition().decompose();
 
-         if( v_cl.getProcessUnitID() == 0 ) {
-            std::cout << "REBALANCED " << it_reb << std::endl;
+         if( vCluser.getProcessUnitID() == 0 ) {
+            std::cout << "REBALANCED " << conouterRebalancing << std::endl;
          }
       }
-      tot_rebalancing.stop();
-      rebalanting_total_time += tot_rebalancing.getwct();
+      timerRebalancing.stop();
+      timerRebalancingTotal += timerRebalancing.getwct();
 
-      timer_map.start();
+      timerMap.start();
       distribtuedVector.map( RUN_ON_DEVICE );
-      timer_map.stop();
-      rebalanting_total_time += timer_map.getwct();
+      timerMap.stop();
+      timerRebalancingTotal += timerMap.getwct();
 
-      // Calculate pressure from the density
-      tot_pressure.start();
+      // calculate pressure from the density
+      timerPressure.start();
       equationOfState( distribtuedVector );
-      tot_pressure.stop();
-      pressure_total_time += tot_pressure.getwct();
-
-      real_number max_visc = 0.0;
+      timerPressure.stop();
+      timerPressureTotal += timerPressure.getwct();
 
       timer_ghosts.start();
-      distribtuedVector.ghost_get< type, rho, Pressure, velocity >( RUN_ON_DEVICE );
+      distribtuedVector.ghost_get< PARTICLE_TYPE, RHO, PRESSURE, VELOCITY >( RUN_ON_DEVICE );
       timer_ghosts.stop();
       ghost_total_time += timer_ghosts.getwct();
 
-      // Calc forces
+      // calculate forces
+      RealType maxViscosity = 0.0;
       timer_interaction.start();
-      computeInteractions( distribtuedVector, nearestNeighbors, max_visc, cnt, fluid_ids, border_ids );
+      computeInteractions( distribtuedVector, nearestNeighbors, maxViscosity, cnt, fluid_ids, border_ids );
       timer_interaction.stop();
       interaction_total_time += timer_interaction.getwct();
 
-      timer_reductions.start();
-      // Get the maximum viscosity term across processors
-      v_cl.max( max_visc );
-      v_cl.execute();
+      timerComputeTimeStep.start();
+      // get maximum of viscosity term across processors
+      vCluser.max( maxViscosity );
+      vCluser.execute();
+      // calculate possible time steop
+      const RealType dt = computeTimeStepSize( distribtuedVector, maxViscosity );
+      timerComputeTimeStep.stop();
+      timerComputeTimeStepTotal += timerComputeTimeStep.getwct();
 
-      // Calculate delta t integration
-      real_number dt = computeTimeStepSize( distribtuedVector, max_visc );
-
-      timer_reductions.stop();
-      reduction_total_time += timer_reductions.getwct();
-
-      // VerletStep or euler step
-      timer_integrate.start();
-      it++;
-      if( it < 40 )
+      // perform step with integration scheme
+      timerIntegration.start();
+      counterIntegrationScheme++;
+      if( counterIntegrationScheme < 40 )
          verletIntegrationScheme( distribtuedVector, dt );
       else {
          eulerIntegrationScheme( distribtuedVector, dt );
-         it = 0;
+         counterIntegrationScheme = 0;
       }
-      timer_integrate.stop();
-      integration_total_time += timer_integrate.getwct();
+      timerIntegration.stop();
+      timerIntegrationTotal += timerIntegration.getwct();
 
-      t += dt;
+      time += dt;
 
-      if( write_pressure <= t ) {
-         // Sensor pressure require update ghost, so we ensure that particles are distributed correctly
-         // and ghost are updated
+      if( counterSensors <= time ) {
+         // sensor pressure require update ghost, so we ensure that particles are distributed correctly and ghost are updated
          distribtuedVector.map( RUN_ON_DEVICE );
-         distribtuedVector.ghost_get< type, rho, Pressure, velocity >( RUN_ON_DEVICE );
+         distribtuedVector.ghost_get< PARTICLE_TYPE, RHO, PRESSURE, VELOCITY >( RUN_ON_DEVICE );
          distribtuedVector.updateCellList( nearestNeighbors );
 
          // calculate the pressure at the sensor points
          sensor_pressure( distribtuedVector, nearestNeighbors, press_t, probes );
          sensor_water_level( distribtuedVector, nearestNeighbors, water_level_t, probes_water_level );
-         press_measured_times.push_back( t );
-
-         write_pressure += write_pressure_interval;
+         press_measured_times.push_back( time );
+         counterSensors += writePeriodSensors;
       }
 
-      if( write < t * 10 ) {
-         // Sensor pressure require update ghost, so we ensure that particles are distributed correctly
-         // and ghost are updated (NOTE: not sure, if this is necessary for the output aswell)
+      if( write < time * 10 ) {
+         std::cout << "Writing output in time:  " << time << std::endl;
+         // Sensor pressure require update ghost, so we ensure that particles are distributed correctly and ghost are updated
+         // NOTE: I don't think this is necessary for output
          distribtuedVector.map( RUN_ON_DEVICE );
          distribtuedVector.ghost_get< type, rho, Pressure, velocity >( RUN_ON_DEVICE );
          distribtuedVector.updateCellList( nearestNeighbors );
 
-         std::cout << "OUTPUT " << dt << std::endl;
-
-         // When we write we have move all the particles information back to CPU
-
+         // to write out the particles, move all data back to CPU
          distribtuedVector.deviceToHostPos();
-         distribtuedVector.deviceToHostProp< type, rho, rho_prev, Pressure, drho, force, velocity, velocity_prev, red, red2 >();
+         distribtuedVector.deviceToHostProp< TYPE,
+                                             RHO,
+                                             RHO_OLD,
+                                             PRESSURE,
+                                             DRHO_DT,
+                                             DV_DT,
+                                             VELOCITY,
+                                             VELOCITY_OLD,
+                                             REDUCTION_REMOVE,
+                                             REDUCTION_VISCO >();
 
          // We copy on another vector with less properties to reduce the size of the output
-         vector_dist_gpu< 3, real_number, aggregate< unsigned int, real_number[ 3 ] > > distribtuedVector_out(
-            distribtuedVector.getDecomposition(), 0 );
+         vector_dist_gpu< 3,
+                          RealType,
+                          aggregate< unsigned int, VectorType > > distribtuedVector_out( distribtuedVector.getDecomposition(), 0 );
+         auto distributedParticleVectorIterator = distribtuedVector.getDomainIterator();
 
-         auto ito = distribtuedVector.getDomainIterator();
-
-         while( ito.isNext() ) {
-            auto p = ito.get();
+         while( distributedParticleVectorIterator.isNext() ) {
+            auto p = distributedParticleVectorIterator.get();
 
             distribtuedVector_out.add();
+            const VectorType r_p = r( p ); //TODO: The position interface is not vectorized
+            distribtuedVector_out.getLastPos()[ 0 ] = r_p[ 0 ];
+            distribtuedVector_out.getLastPos()[ 1 ] = r_p[ 1 ];
+            distribtuedVector_out.getLastPos()[ 2 ] = r_p[ 2 ];
 
-            distribtuedVector_out.getLastPos()[ 0 ] = distribtuedVector.getPos( p )[ 0 ];
-            distribtuedVector_out.getLastPos()[ 1 ] = distribtuedVector.getPos( p )[ 1 ];
-            distribtuedVector_out.getLastPos()[ 2 ] = distribtuedVector.getPos( p )[ 2 ];
-
-            distribtuedVector_out.template getLastProp< 0 >() = distribtuedVector.template getProp< type >( p );
-
-            distribtuedVector_out.template getLastProp< 1 >()[ 0 ] = distribtuedVector.template getProp< velocity >( p )[ 0 ];
-            distribtuedVector_out.template getLastProp< 1 >()[ 1 ] = distribtuedVector.template getProp< velocity >( p )[ 1 ];
-            distribtuedVector_out.template getLastProp< 1 >()[ 2 ] = distribtuedVector.template getProp< velocity >( p )[ 2 ];
+            distribtuedVector_out.template getLastProp< 0 >() = type( p );
+            distribtuedVector_out.template getLastProp< 1 >() = v( p );
 
             ++ito;
          }
@@ -1174,14 +1174,14 @@ main( int argc, char* argv[] )
          distribtuedVector_out.write_frame( "Particles", write, VTK_WRITER | FORMAT_BINARY );
          write++;
 
-         if( v_cl.getProcessUnitID() == 0 ) {
-            std::cout << "TIME: " << t << "  write " << it_time.getwct() << "   " << it_reb << "   " << cnt
+         if( vCluser.getProcessUnitID() == 0 ) {
+            std::cout << "TIME: " << t << "  write " << it_time.getwct() << "   " << conouterRebalancing << "   " << cnt
                       << " Max visc: " << max_visc << "   " << distribtuedVector.size_local() << std::endl;
          }
       }
 
-      if( v_cl.getProcessUnitID() == 0 ) {
-         std::cout << "TIME: " << t << "  " << it_time.getwct() << "   " << it_reb << "   " << cnt << " Max visc: " << max_visc
+      if( vCluser.getProcessUnitID() == 0 ) {
+         std::cout << "TIME: " << t << "  " << it_time.getwct() << "   " << conouterRebalancing << "   " << cnt << " Max visc: " << max_visc
                    << "   " << distribtuedVector.size_local() << std::endl;
       }
    }
@@ -1190,15 +1190,15 @@ main( int argc, char* argv[] )
 
    std::cout << "TIME MEASUREMENT RESULTS:" << std::endl;
    std::cout << "Time to complete: " << tot_sim.getwct() << " seconds" << std::endl;
-   std::cout << "Vcluster: " << vcluster_total_time << " seconds" << std::endl;
+   std::cout << "Vcluster: " << timerVClusterTotal << " seconds" << std::endl;
    std::cout << "Interaction: " << interaction_total_time << " seconds" << std::endl;
-   std::cout << "Pressure: " << pressure_total_time << " seconds" << std::endl;
-   std::cout << "Integration: " << integration_total_time << " seconds" << std::endl;
-   std::cout << "Reabalancing: " << rebalanting_total_time << " seconds" << std::endl;
+   std::cout << "Pressure: " << timerPressureTotal << " seconds" << std::endl;
+   std::cout << "Integration: " << timerIntegrationTotal << " seconds" << std::endl;
+   std::cout << "Reabalancing: " << timerRebalancingTotal << " seconds" << std::endl;
    std::cout << "Map: " << map_total_time << " seconds" << std::endl;
-   std::cout << "Reduction: " << reduction_total_time << " seconds" << std::endl;
+   std::cout << "Reduction: " << timerComputeTimeStepTotal << " seconds" << std::endl;
    std::cout << "Ghost: " << ghost_total_time << " seconds" << std::endl;
-   std::cout << "Number of steps: " << tot_steps << " seconds" << std::endl;
+   std::cout << "Number of steps: " << simulationStep << " seconds" << std::endl;
 
    //Write pressure sensor outputs
    std::ofstream file_probes;
@@ -1229,24 +1229,24 @@ main( int argc, char* argv[] )
    file_timers.open( "timers.json" );
 
    file_timers << "{" << std::endl;
-   file_timers << "	\"integrate\": \"" << integration_total_time << "\"," << std::endl;
-   file_timers << "	\"integrate-average\": \"" << integration_total_time / tot_steps << "\"," << std::endl;
+   file_timers << "	\"integrate\": \"" << timerIntegrationTotal << "\"," << std::endl;
+   file_timers << "	\"integrate-average\": \"" << timerIntegrationTotal / simulationStep << "\"," << std::endl;
    file_timers << "	\"interaction\": \"" << interaction_total_time << "\"," << std::endl;
-   file_timers << "	\"interaction-average\": \"" << interaction_total_time / tot_steps << "\"," << std::endl;
-   file_timers << "	\"pressure-update\": \"" << pressure_total_time << "\"," << std::endl;
-   file_timers << "	\"pressure-update-average\": \"" << pressure_total_time / tot_steps << "\"," << std::endl;
-   file_timers << "	\"vcluster\": \"" << vcluster_total_time << "\"," << std::endl;
-   file_timers << "	\"vcluster-average\": \"" << vcluster_total_time / tot_steps << "\"," << std::endl;
-   file_timers << "	\"rebalancing\": \"" << rebalanting_total_time << "\"," << std::endl;
-   file_timers << "	\"rebalancing-average\": \"" << rebalanting_total_time / tot_steps << "\"," << std::endl;
+   file_timers << "	\"interaction-average\": \"" << interaction_total_time / simulationStep << "\"," << std::endl;
+   file_timers << "	\"pressure-update\": \"" << timerPressureTotal << "\"," << std::endl;
+   file_timers << "	\"pressure-update-average\": \"" << timerPressureTotal / simulationStep << "\"," << std::endl;
+   file_timers << "	\"vcluster\": \"" << timerVClusterTotal << "\"," << std::endl;
+   file_timers << "	\"vcluster-average\": \"" << timerVClusterTotal / simulationStep << "\"," << std::endl;
+   file_timers << "	\"rebalancing\": \"" << timerRebalancingTotal << "\"," << std::endl;
+   file_timers << "	\"rebalancing-average\": \"" << timerRebalancingTotal / simulationStep << "\"," << std::endl;
    file_timers << "	\"map\": \"" << map_total_time << "\"," << std::endl;
-   file_timers << "	\"map-average\": \"" << map_total_time / tot_steps << "\"," << std::endl;
-   file_timers << "	\"reduction\": \"" << reduction_total_time << "\"," << std::endl;
-   file_timers << "	\"reduction_total_time-average\": \"" << reduction_total_time / tot_steps << "\"," << std::endl;
+   file_timers << "	\"map-average\": \"" << map_total_time / simulationStep << "\"," << std::endl;
+   file_timers << "	\"reduction\": \"" << timerComputeTimeStepTotal << "\"," << std::endl;
+   file_timers << "	\"timerComputeTimeStepTotal-average\": \"" << timerComputeTimeStepTotal / simulationStep << "\"," << std::endl;
    file_timers << "	\"ghost\": \"" << ghost_total_time << "\"," << std::endl;
-   file_timers << "	\"ghost-average\": \"" << ghost_total_time / tot_steps << "\"," << std::endl;
+   file_timers << "	\"ghost-average\": \"" << ghost_total_time / simulationStep << "\"," << std::endl;
    file_timers << "	\"total\": \"" << tot_sim.getwct() << "\"," << std::endl;
-   file_timers << "	\"total-average\": \"" << tot_sim.getwct() / tot_steps << "\"" << std::endl;
+   file_timers << "	\"total-average\": \"" << tot_sim.getwct() / simulationStep << "\"" << std::endl;
    file_timers << "}" << std::endl;
 
    file_timers.close();
