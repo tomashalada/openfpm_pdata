@@ -26,7 +26,8 @@ using DistributedParticleVector =  vector_dist_gpu< 3, RealType, AggregatedVaria
 
 
 // define more friendly acces to variables
-#define r( i ) distributedVector.getPos( i )
+//#define r( i ) distributedVector.getPos( i )
+#define r( i ) { distributedVector.getPos( i )[ 0 ], distributedVector.getPos( i )[ 1 ], distributedVector.getPos( i )[ 2 ] }
 #define type( i ) distributedVector.template getProp< 0 >( i )
 #define rho( i ) distributedVector.template getProp< 1 >( i )
 #define rho_old( i ) distributedVector.template getProp< 2 >( i )

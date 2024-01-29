@@ -270,8 +270,7 @@ computeFluidInteractions_kernel( particles_type distribtuedVector,
 
       const VectorType r_ab = xa - xb;
       const VectorType v_ab = va - vb;
-      const RealType r2 = norm2( dr );   //TODO: Retarded
-      const RealType drs = sqrtf( r2 );  //TODO: Duplicit distances
+      const RealType drs = norm( dr );
 
       if( drs < searchRadius )  //TODO: This condition is too deep
       {
@@ -318,7 +317,7 @@ computeBoundaryInteractions_kernel( particles_type distribtuedVector,
    while( neihgborParticlesIterator.isNext() == true ) {
       const auto b = neihgborPartiicles.get_sort();
       const unsigned int type_b = type( b );
-      if( type_a == BOUNDARY && type_b == BOUNDARY || a == b )  //TODO: It boundary/boundary check necessary?
+      if( type_a == BOUNDARY && type_b == BOUNDARY || a == b )  //TODO: Is boundary/boundary check necessary?
       {
          ++neihgborParticlesIterator;
          continue;
@@ -329,8 +328,7 @@ computeBoundaryInteractions_kernel( particles_type distribtuedVector,
 
       const VectorType r_ab = xa - xb;
       const VectorType v_ab = va - vb;
-      const RealType r2 = norm2( dr );   //TODO: Retarded
-      const RealType drs = sqrtf( r2 );  //TODO: Duplicit distances
+      const RealType drs = norm2( dr );
 
       if( drs < searchRadius )  //TODO: This condition is too deep
       {
@@ -915,16 +913,12 @@ main( int argc, char* argv[] )
       ++fluid_it;
    }
 
-   // Recipient
-   //Box<3,real_number> recipient1({0.0,0.0,0.0},{1.6+dp/2.0,0.67+dp/2.0,0.4+dp/2.0});
-   //Box<3,real_number> recipient2({dp,dp,dp},{1.6-dp/2.0,0.67-dp/2.0,0.4+dp/2.0});
+   // recipient
    Box< 3, real_number > recipient1( { 0.0, 0.0, 0.0 }, { 3.22 + dp / 2.0, 1.0 + dp / 2.0, 1.0 + dp / 2.0 } );
    Box< 3, real_number > recipient2( { dp, dp, dp }, { 3.22 - dp / 2.0, 1.0 - dp / 2.0, 1.0 + dp / 2.0 } );
 
-   //Box<3,real_number> obstacle1({0.9,0.24-dp/2.0,0.0},{1.02+dp/2.0,0.36,0.45+dp/2.0});
-   //Box<3,real_number> obstacle2({0.9+dp,0.24+dp/2.0,0.0},{1.02-dp/2.0,0.36-dp,0.45-dp/2.0});
-   //Box<3,real_number> obstacle3({0.9+dp,0.24,0.0},{1.02,0.36,0.45});
 
+   // obstacle
    Box< 3, real_number > obstacle1( { 0.66, 0.3 - dp / 2.0, 0.0 }, { 0.82 + dp / 2.0, 0.7, 0.16 + dp / 2.0 } );
    Box< 3, real_number > obstacle2( { 0.66 + dp, 0.3 + dp / 2.0, 0.0 }, { 0.82 - dp / 2.0, 0.7 - dp, 0.16 - dp / 2.0 } );
    Box< 3, real_number > obstacle3( { 0.66 + dp, 0.3, 0.0 }, { 1.02, 0.7, 0.16 } );
@@ -932,111 +926,89 @@ main( int argc, char* argv[] )
    openfpm::vector< Box< 3, real_number > > holes;
    holes.add( recipient2 );
    holes.add( obstacle1 );
-   auto bound_box = DrawParticles::DrawSkin( distribtuedVector, sz, domain, holes, recipient1 );
 
+   auto bound_box = DrawParticles::DrawSkin( distribtuedVector, sz, domain, holes, recipient1 );
    while( bound_box.isNext() ) {
       distribtuedVector.add();
-
       distribtuedVector.getLastPos()[ 0 ] = bound_box.get().get( 0 );
       distribtuedVector.getLastPos()[ 1 ] = bound_box.get().get( 1 );
       distribtuedVector.getLastPos()[ 2 ] = bound_box.get().get( 2 );
-
       distribtuedVector.template getLastProp< type >() = BOUNDARY;
       distribtuedVector.template getLastProp< rho >() = rho_zero;
       distribtuedVector.template getLastProp< rho_prev >() = rho_zero;
       distribtuedVector.template getLastProp< velocity >()[ 0 ] = 0.0;
       distribtuedVector.template getLastProp< velocity >()[ 1 ] = 0.0;
       distribtuedVector.template getLastProp< velocity >()[ 2 ] = 0.0;
-
       distribtuedVector.template getLastProp< velocity_prev >()[ 0 ] = 0.0;
       distribtuedVector.template getLastProp< velocity_prev >()[ 1 ] = 0.0;
       distribtuedVector.template getLastProp< velocity_prev >()[ 2 ] = 0.0;
-
       ++bound_box;
    }
 
    auto obstacle_box = DrawParticles::DrawSkin( distribtuedVector, sz, domain, obstacle2, obstacle1 );
-
    while( obstacle_box.isNext() ) {
       distribtuedVector.add();
-
       distribtuedVector.getLastPos()[ 0 ] = obstacle_box.get().get( 0 );
       distribtuedVector.getLastPos()[ 1 ] = obstacle_box.get().get( 1 );
       distribtuedVector.getLastPos()[ 2 ] = obstacle_box.get().get( 2 );
-
       distribtuedVector.template getLastProp< type >() = BOUNDARY;
-      distribtuedVector.template getLastProp< rho >() = rho_zero;
-      distribtuedVector.template getLastProp< rho_prev >() = rho_zero;
+      distribtuedVector.template getLastProp< rho >() = rho0;
+      distribtuedVector.template getLastProp< rho_prev >() = rho0;
       distribtuedVector.template getLastProp< velocity >()[ 0 ] = 0.0;
       distribtuedVector.template getLastProp< velocity >()[ 1 ] = 0.0;
       distribtuedVector.template getLastProp< velocity >()[ 2 ] = 0.0;
-
       distribtuedVector.template getLastProp< velocity_prev >()[ 0 ] = 0.0;
       distribtuedVector.template getLastProp< velocity_prev >()[ 1 ] = 0.0;
       distribtuedVector.template getLastProp< velocity_prev >()[ 2 ] = 0.0;
-
       ++obstacle_box;
    }
 
    distribtuedVector.map();
 
    // Now that we fill the vector with particles
-   ModelCustom md;
-
-   distribtuedVector.addComputationCosts( md );
+   ModelCustom modelCustom;
+   distribtuedVector.addComputationCosts( modelCustom );
    distribtuedVector.getDecomposition().decompose();
    distribtuedVector.map();
 
-   ///////////////////////////
-
-   // Ok the initialization is done on CPU on GPU we are doing the main loop, so first we offload all properties on GPU
-
+   // initialization is done on CPU on GPU we are doing the main loop, so first we offload all properties on GPU
    distribtuedVector.hostToDevicePos();
-   distribtuedVector.template hostToDeviceProp< type, rho, rho_prev, Pressure, velocity >();
-
+   distribtuedVector.template hostToDeviceProp< TYPE, RHO, RHO_PREV, PRESSURE, VELOCITY >();
    distribtuedVector.ghost_get< type, rho, Pressure, velocity >( RUN_ON_DEVICE );
 
-   auto nearestNeighbors = distribtuedVector.getCellListGPU /*<CELLLIST_GPU_SPARSE<3,float>>*/ ( 2 * H / 2.0 );
+   // initialize neighbor search structures
+   auto nearestNeighbors = distribtuedVector.getCellListGPU /*<CELLLIST_GPU_SPARSE<3,float>>*/ ( searchRadius );
    nearestNeighbors.setBoxnearestNeighbors( 2 );
 
-   //Added timers to track every operation inside the time loop
-   timer tot_sim;
-
+   // added timers to track every operation inside the time loop
+   timer timerSimulationTotal;
    timer timerVCluster;
    float timerVClusterTotal = 0.f;
-
    timer timer_interaction;
    float interaction_total_time = 0.f;
-
    timer timerPressure;
    float timerPressureTotal = 0.f;
-
    timer timerIntegration;
    float timerIntegrationTotal = 0.f;
-
    timer timerRebalancing;
    float timerRebalancingTotal = 0.f;
-
    timer timerMap;
    float map_total_time = 0.f;
-
    timer timerComputeTimeStep;
    float timerComputeTimeStepTotal = 0.f;
-
    timer timer_ghosts;
    float ghost_total_time = 0.f;
 
-   //Cout the total number of steps
+   // sutaks timers,simulation time and step
    int simulationStep = 0;
-
-   tot_sim.start();
-
-   size_t write = 0;
-   float counterSensors = 0;
-   float writePeriodSensors = 0.01;
+   float time = 0.0;
+   size_t counterWrite = 0;
    size_t counterIntegrationScheme = 0;
    size_t conouterRebalancing = 0;
-   RealType time = 0.0;
+   float counterSensors = 0;
+   float writePeriodSensors = 0.01;
+
+   timerSimulationTotal.start();
 
    while( t <= simulatioEndTime ) {
       simulationStep++;
@@ -1129,7 +1101,7 @@ main( int argc, char* argv[] )
          counterSensors += writePeriodSensors;
       }
 
-      if( write < time * 10 ) {
+      if( counterWrite < time * 10 ) {
          std::cout << "Writing output in time:  " << time << std::endl;
          // Sensor pressure require update ghost, so we ensure that particles are distributed correctly and ghost are updated
          // NOTE: I don't think this is necessary for output
@@ -1164,15 +1136,14 @@ main( int argc, char* argv[] )
             distribtuedVector_out.getLastPos()[ 0 ] = r_p[ 0 ];
             distribtuedVector_out.getLastPos()[ 1 ] = r_p[ 1 ];
             distribtuedVector_out.getLastPos()[ 2 ] = r_p[ 2 ];
-
             distribtuedVector_out.template getLastProp< 0 >() = type( p );
             distribtuedVector_out.template getLastProp< 1 >() = v( p );
 
-            ++ito;
+            ++distributedParticleVectorIterator;
          }
 
          distribtuedVector_out.write_frame( "Particles", write, VTK_WRITER | FORMAT_BINARY );
-         write++;
+         counterWrite++;
 
          if( vCluser.getProcessUnitID() == 0 ) {
             std::cout << "TIME: " << t << "  write " << it_time.getwct() << "   " << conouterRebalancing << "   " << cnt
@@ -1186,10 +1157,10 @@ main( int argc, char* argv[] )
       }
    }
 
-   tot_sim.stop();
+   timerSimulationTotal.stop();
 
    std::cout << "TIME MEASUREMENT RESULTS:" << std::endl;
-   std::cout << "Time to complete: " << tot_sim.getwct() << " seconds" << std::endl;
+   std::cout << "Time to complete: " << timerSimulationTotal.getwct() << " seconds" << std::endl;
    std::cout << "Vcluster: " << timerVClusterTotal << " seconds" << std::endl;
    std::cout << "Interaction: " << interaction_total_time << " seconds" << std::endl;
    std::cout << "Pressure: " << timerPressureTotal << " seconds" << std::endl;
@@ -1245,8 +1216,8 @@ main( int argc, char* argv[] )
    file_timers << "	\"timerComputeTimeStepTotal-average\": \"" << timerComputeTimeStepTotal / simulationStep << "\"," << std::endl;
    file_timers << "	\"ghost\": \"" << ghost_total_time << "\"," << std::endl;
    file_timers << "	\"ghost-average\": \"" << ghost_total_time / simulationStep << "\"," << std::endl;
-   file_timers << "	\"total\": \"" << tot_sim.getwct() << "\"," << std::endl;
-   file_timers << "	\"total-average\": \"" << tot_sim.getwct() / simulationStep << "\"" << std::endl;
+   file_timers << "	\"total\": \"" << timerSimulationTotal.getwct() << "\"," << std::endl;
+   file_timers << "	\"total-average\": \"" << timerSimulationTotal.getwct() / simulationStep << "\"" << std::endl;
    file_timers << "}" << std::endl;
 
    file_timers.close();
