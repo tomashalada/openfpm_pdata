@@ -2,9 +2,12 @@
 # openfpm installed and the gpu examples have to be compiled in the same mode (i.e. via nvcc, hip or gpu-emulated (CUDA_ON_CPU))
 
 ### This is a trick to avoid "Command not found if you no not have NVCC compiler". In practice the normal C++ compiler is used
-### internally the example disable with the preprocessor its code if not compiled with nvcc 
+### internally the example disable with the preprocessor its code if not compiled with nvcc
 CUDA_CC=
 CUDA_CC_LINK=
+
+TNL_INCLUDE_DIRS := -I ~/.local/include
+TNLSPH_INCLUDE_DIRS := -I ../../../include
 
 ifdef HIP
     CUDA_CC=hipcc
@@ -18,7 +21,7 @@ else
         CUDA_CC=mpic++ -x c++
         INCLUDE_PATH_NVCC=$(INCLUDE_PATH)
         CUDA_CC_LINK=mpic++
-        CUDA_OPTIONS=-O3 --std=c++14 -DTEST_RUN -D__NVCC__ -DCUDART_VERSION=11000
+        CUDA_OPTIONS=-O3 --std=c++14 -DTEST_RUN -D__NVCC__ -DCUDART_VERSION=11000 $(TNL_INCLUDE_DIRS) $(TNLSPH_INCLUDE_DIRS)
         LIBS_SELECT=$(LIBS) -lboost_context
     else
         ifeq (, $(shell which nvcc))
@@ -31,7 +34,7 @@ else
             INCLUDE_PATH_NVCC:=-Xcompiler=-Wno-deprecated-declarations $(INCLUDE_PATH_NVCC)
             CUDA_CC=nvcc -ccbin=mpic++
             CUDA_CC_LINK=nvcc -ccbin=mpic++
-            CUDA_OPTIONS=-O3 --std=c++14 -DTEST_RUN -use_fast_math  -arch=sm_61 -lineinfo --extended-lambda --expt-relaxed-constexpr
+            CUDA_OPTIONS=-O3 --std=c++14 -DTEST_RUN -use_fast_math  -arch=sm_61 -lineinfo --extended-lambda --expt-relaxed-constexpr $(TNL_INCLUDE_DIRS) $(TNLSPH_INCLUDE_DIRS)
             LIBS_SELECT=$(LIBS_NVCC)
         endif
     endif
@@ -47,6 +50,6 @@ else
 endif
 
 OPT=-g -O3 --std=c++14 -DTEST_RUN
-INCLUDE_PATH:=-Wno-deprecated-declarations $(INCLUDE_PATH) 
+INCLUDE_PATH:=-Wno-deprecated-declarations $(INCLUDE_PATH)
 
-INCLUDE_PATH_NVCC:=$(INCLUDE_PATH_NVCC) -I./include 
+INCLUDE_PATH_NVCC:=$(INCLUDE_PATH_NVCC) -I./include

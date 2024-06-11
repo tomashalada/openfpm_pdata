@@ -929,37 +929,46 @@ main( int argc, char* argv[] )
 
    auto bound_box = DrawParticles::DrawSkin( distribtuedVector, sz, domain, holes, recipient1 );
    while( bound_box.isNext() ) {
+
       distribtuedVector.add();
       distribtuedVector.getLastPos()[ 0 ] = bound_box.get().get( 0 );
       distribtuedVector.getLastPos()[ 1 ] = bound_box.get().get( 1 );
       distribtuedVector.getLastPos()[ 2 ] = bound_box.get().get( 2 );
+
       distribtuedVector.template getLastProp< type >() = BOUNDARY;
       distribtuedVector.template getLastProp< rho >() = rho_zero;
       distribtuedVector.template getLastProp< rho_prev >() = rho_zero;
+
       distribtuedVector.template getLastProp< velocity >()[ 0 ] = 0.0;
       distribtuedVector.template getLastProp< velocity >()[ 1 ] = 0.0;
       distribtuedVector.template getLastProp< velocity >()[ 2 ] = 0.0;
+
       distribtuedVector.template getLastProp< velocity_prev >()[ 0 ] = 0.0;
       distribtuedVector.template getLastProp< velocity_prev >()[ 1 ] = 0.0;
       distribtuedVector.template getLastProp< velocity_prev >()[ 2 ] = 0.0;
+
       ++bound_box;
    }
 
    auto obstacle_box = DrawParticles::DrawSkin( distribtuedVector, sz, domain, obstacle2, obstacle1 );
    while( obstacle_box.isNext() ) {
+
       distribtuedVector.add();
       distribtuedVector.getLastPos()[ 0 ] = obstacle_box.get().get( 0 );
       distribtuedVector.getLastPos()[ 1 ] = obstacle_box.get().get( 1 );
       distribtuedVector.getLastPos()[ 2 ] = obstacle_box.get().get( 2 );
+
       distribtuedVector.template getLastProp< type >() = BOUNDARY;
       distribtuedVector.template getLastProp< rho >() = rho0;
       distribtuedVector.template getLastProp< rho_prev >() = rho0;
+
       distribtuedVector.template getLastProp< velocity >()[ 0 ] = 0.0;
       distribtuedVector.template getLastProp< velocity >()[ 1 ] = 0.0;
       distribtuedVector.template getLastProp< velocity >()[ 2 ] = 0.0;
       distribtuedVector.template getLastProp< velocity_prev >()[ 0 ] = 0.0;
       distribtuedVector.template getLastProp< velocity_prev >()[ 1 ] = 0.0;
       distribtuedVector.template getLastProp< velocity_prev >()[ 2 ] = 0.0;
+
       ++obstacle_box;
    }
 
@@ -1000,7 +1009,7 @@ main( int argc, char* argv[] )
    float ghost_total_time = 0.f;
 
    // sutaks timers,simulation time and step
-   int simulationStep = 0;
+   size_t simulationStep = 0;
    float time = 0.0;
    size_t counterWrite = 0;
    size_t counterIntegrationScheme = 0;
